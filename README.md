@@ -1,4 +1,5 @@
 # DST Assessment 1
+Binary classification of flight delay data.
 ## Project Group
 
 * Abbie
