@@ -13,7 +13,7 @@ Equity: 25:25:25:25 (expected)
 
 All report content is in the directory:
 
-* report/
+* Report/
 
 The report takes the following structure:
 
@@ -43,6 +43,9 @@ Requirements for the Python code is given in `requirements.txt`; to install, in 
 ```{sh}
 pip3 install -r requirements.txt
 ```
+### Data
+
+The data used for this project is available in the Data directory.
 
 ## Evidence
 
