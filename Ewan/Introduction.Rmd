@@ -1,0 +1,95 @@
+---
+title: " Flight Delay Binary Classification: A Comparison of Machine Learning Models"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Introduction
+In this project, we explored the performance of supervised machine learning models to predict flight delays. The project made use of **six?** different classification models (Logistic Regression, K-Nearest Neighbours, Gaussian Naïve Bayes, Decision Tree, Neural Networks, Gradient Boosted Tree) which were trained and tested on our flight data set. The performance of each of the binary classification predictions was then evaluated against our performance evaluation metrics which we have defined in *section 08*. The theoretical aspects of our chosen models and the performance evaluation metrics are explained in each relevant section. We present our conclusions in *section 09*.
+
+## Data Set Description
+
+The data set we are using for this project is the open dataset *"2019 Airline Delays w/Weather and Airport Detail"*, sourced from Kaggle via the address [<https://www.kaggle.com/datasets/threnjen/2019-airline-delays-and-cancellations>]. This data set contains data about US domestric flights departing during 2019, including data on the weather and airport conditions on each departure date. In our analysis, a flight is considered to be delayed when it incurs a delay of 15 minutes or more. This data set is of size 6489062 x 26.
+
+A detailed description of the data set features is provided below.
+
+```{r, results='asis', echo=FALSE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+column_descriptions <- data.frame(
+  Feature = c(
+    "MONTH", "DAY_OF_WEEK", "DEP_DEL15", "DEP_TIME_BLK", "DISTANCE_GROUP", 
+    "SEGMENT_NUMBER", "CONCURRENT_FLIGHTS", "NUMBER_OF_SEATS", "CARRIER_NAME", 
+    "AIRPORT_FLIGHTS_MONTH", "AIRLINE_FLIGHTS_MONTH", "AIRLINE_AIRPORT_FLIGHTS_MONTH", 
+    "AVG_MONTHLY_PASS_AIRPORT", "AVG_MONTHLY_PASS_AIRLINE", "FLT_ATTENDANTS_PER_PASS", 
+    "GROUND_SERV_PER_PASS", "PLANE_AGE", "DEPARTING_AIRPORT", "LATITUDE", 
+    "LONGITUDE", "PREVIOUS_AIRPORT", "PRCP", "SNOW", "SNWD", "TMAX", "AWND"
+  ),
+  Description = c(
+    "Month", "Day of Week", "(TARGET) Departure Delay Indicator, 15 Minutes or More (1=Yes)", 
+    "CRS Departure Time Block, Hourly Intervals", "Distance group to be flown by departing aircraft", 
+    "The segment that this tail number is on for the day", "Concurrent flights leaving from the airport in the same departure block", 
+    "Number of seats on the aircraft", "Carrier", "Avg Airport Flights per Month", 
+    "Avg Airline Flights per Month", "Avg Flights per month for Airline AND Airport", 
+    "Avg Passengers for the departing airport for the month", "Avg Passengers for airline for month", 
+    "Flight attendants per passenger for airline", "Ground service employees (service desk) per passenger for airline", 
+    "Age of departing aircraft", "Departing Airport", "Latitude of departing airport", 
+    "Longitude of departing airport", "Previous airport that aircraft departed from", 
+    "Inches of precipitation for day", "Inches of snowfall for day", 
+    "Inches of snow on ground for day", "Max temperature for day", "Max wind speed for day"
+  )
+)
+
+kable(column_descriptions, format = "html") %>%
+  kable_styling(full_width = FALSE) %>%
+  row_spec(0, bold = TRUE) %>%
+  column_spec(1, width = "20%") %>%
+  column_spec(2, width = "80%")
+```
+
+\newline
+
+For the purposes of this project, we decided to perform the binary classification on flights departing from "John F. Kennedy International Airport" in order to keep the data set to a manageable size. The choice of "John F. Kennedy International Airport" is somewhat arbitrary, however this decision was informed by exploratory data analysis (*section 02)* which told us that this airport is not an outlier in terms of proportions of delays.
+
+We then removed the features "DEPARTING_AIRPORT", "AIRPORT_FLIGHTS_MONTH", "LATITUDE", "LONGITUDE", "AVG_MONTHLY_PASS_AIRPORT", as these no longer have value in our reduced data set.
+
+The JFK airport data set is of size 125109 x 21, with no missing values. 
+
+A detailed description of the JFK Airport data set features is provided below.
+
+```{r, results='asis', echo=FALSE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+column_descriptions <- data.frame(
+  Feature = c(
+    "MONTH", "DAY_OF_WEEK", "DEP_DEL15", "DEP_TIME_BLK", "DISTANCE_GROUP", 
+    "SEGMENT_NUMBER", "CONCURRENT_FLIGHTS", "NUMBER_OF_SEATS", "CARRIER_NAME", 
+    "AIRLINE_FLIGHTS_MONTH", "AIRLINE_AIRPORT_FLIGHTS_MONTH", 
+    "AVG_MONTHLY_PASS_AIRLINE", "FLT_ATTENDANTS_PER_PASS", 
+    "GROUND_SERV_PER_PASS", "PLANE_AGE", "PREVIOUS_AIRPORT", "PRCP", "SNOW", "SNWD", "TMAX", "AWND"
+  ),
+  Description = c(
+    "Month", "Day of Week", "(TARGET) Departure Delay Indicator, 15 Minutes or More (1=Yes)", 
+    "CRS Departure Time Block, Hourly Intervals", "Distance group to be flown by departing aircraft", 
+    "The segment that this tail number is on for the day", "Concurrent flights leaving from the airport in the same departure block", 
+    "Number of seats on the aircraft", "Carrier", 
+    "Avg Airline Flights per Month", "Avg Flights per month for Airline AND Airport", "Avg Passengers for airline for month", 
+    "Flight attendants per passenger for airline", "Ground service employees (service desk) per passenger for airline", 
+    "Age of departing aircraft", "Previous airport that aircraft departed from", 
+    "Inches of precipitation for day", "Inches of snowfall for day", 
+    "Inches of snow on ground for day", "Max temperature for day", "Max wind speed for day"
+  )
+)
+
+kable(column_descriptions, format = "html") %>%
+  kable_styling(full_width = FALSE) %>%
+  row_spec(0, bold = TRUE) %>%
+  column_spec(1, width = "20%") %>%
+  column_spec(2, width = "80%")
+```
+
