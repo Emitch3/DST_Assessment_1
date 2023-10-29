@@ -19,11 +19,10 @@ The report takes the following structure:
 
 * 01-Introduction.html
 * 02-EDA.Rmd
-* 03-Cross_validation.ipynb
+* 03-Data Transformation + Baseline Model.ipynb
 * 04-Abbie_model.ipynb
 * 05-Arun_model.ipynb
 * 06-Ben_model.ipynb
-* 07-Ewan_model.ipynb
 * 08-Model_performance_evaluation.ipynb
 * 09-Conclusion.html
 
