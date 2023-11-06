@@ -1,5 +1,6 @@
 ---
-title: "Exploratory Data Analysis of the JFK Airport Data Set"
+title: "R Flight Data EDA"
+author: "Ewan Mitchell"
 output:
   html_document:
     df_print: paged
@@ -19,10 +20,10 @@ library(factoextra)
 library(RColorBrewer)
 ```
 
-## JFK International Airport Flight Delay Data Set
-This data set concerns flight delays for domestic flights departing JFK International Airport. It provides detailed information about airline, weather, airport and employment conditions. The aim of exploring this data set is to study the correlation between features and flight delays with the goal of performing a binary classification on this data set.
+## 2019 Airline Delays with Weather and Airport Detail
+This data set is about flight delays in the United States, providing  detailed information about airline, weather, airport and employment conditions. The aim of exploring this data set is to study the correlation between features and flight delays with the eventual goal, in Assessment 1, of performing a binary classification on this data set.
 
-This data set has been created from a larger open data set available at this address:
+
 Data set available at "https://www.kaggle.com/datasets/threnjen/2019-airline-delays-and-cancellations".
 
 ```{r}
@@ -166,7 +167,7 @@ ggplot(delayed_proportions, aes(x = DEP_TIME_BLK, y = proportion_delayed, fill =
 
 We see that there is a rise in the proportion of flight delays up to 12am where it drops back down. The highest proportions of flight delays are in the evening at departure blocks between 6pm - 12am.
 
-### Examining the proportion of delays by Previous Airport.
+# Examining the proportion of delays by Previous Airport.
 ```{r}
 
 delayed_proportions_airport <- flightData %>%
@@ -196,7 +197,7 @@ ggplot(plot_data, aes(x = factor(PREVIOUS_AIRPORT, levels = c(as.character(top_a
 ```
 
 
-### Correlation plot of all numerical variables
+# Corr plot of all numerical variables
 ```{r}
 filtered_data <- flightData %>%
   select_if(is.numeric)
@@ -248,10 +249,9 @@ p2
 
 ```
 
-Based on the correlation plot and the pca feature plot, We observe a positive correlation between the flight delays variable - "DEP_DEL15" and the variables, "AIRLINE_AIRPORT_FLIGHTS_MONTH", with which it has the largest correlation as well as with "FLT_ATTENDANTS_PER_PASS" and "PLANE_AGE".
+Based on the correlation plot and the pca feature plot, We observe a correlation between the flight delays variable - "DEP_DEL15" and the variables, "AIRLINE_AIRPORT_FLIGHTS_MONTH", with which it has the largest correlation and "FLT_ATTENDANTS_PER_PASS" and "PLANE_AGE".
 
 ### Examining the correlation between weather information + flight delays
-
 We look at only numeric features that concern the weather and the flight departures, and perform correlation analysis and PCA.
 
 ```{r}
@@ -283,13 +283,6 @@ p2
 
 ```
 
-Based on the correlation plot and the pca feature plot, we observe a positive correlation between "DEP_DEL15" and "PRCP" with which it has the highest correlation as well as with "SNOW" and "SWND".
-
-
-##### References
-
-[1] - www.sthda.com. ggplot2 histogram plot : Quick start guide - R software and data visualization - Easy Guides - Wiki - STHDA. [online] Available at: http://www.sthda.com/english/wiki/ggplot2-histogram-plot-quick-start-guide-r-software-and-data-visualization.
- 
-[2]  - www.sthda.com. Eigenvalues: Quick data visualization with factoextra - R software and data mining - Easy Guides - Wiki - STHDA. [online] Available at: http://www.sthda.com/english/wiki/eigenvalues-quick-data-visualization-with-factoextra-r-software-and-data-mining 
+Based on the correlation plot and the pca feature plot, we can observe a positive correlation between "DEP_DEL15" and "PRCP" with which it has the highest correlation and "SNOW" and "SWND".
 
 
