@@ -1,0 +1,279 @@
+---
+title: "Finding best K for KNN"
+author: "Abbie Hayward"
+date: "2023-10-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Data set available at "https://www.kaggle.com/datasets/threnjen/2019-airline-delays-and-cancellations".
+
+```{r}
+if(!require("knitr")) install.packages("knitr")
+if(!require("MASS")) install.packages("MASS")
+if(!require("class")) install.packages("class")
+if(!require("e1071")) install.packages("e1071")
+if(!require("pROC")) install.packages("pROC")
+if(!require("devtools")) install.packages("devtools")
+library("devtools") # for install_github
+if(!require("fastAdaboost")) devtools::install_github("souravc83/fastAdaboost")
+library("knitr") # 
+library("MASS") # For logistic regression
+library("class") # For knn
+library("e1071") # For SVM
+library("pROC") # For ROCs
+library("fastAdaboost") # For adaboost
+library(readr)
+library(tidyr)
+library(dplyr)
+library(tidyverse)
+library(fastDummies)
+library(caret)
+```
+
+```{r}
+setwd("~/Data Science Toolbox")
+```
+
+From previous analysis, the dataset has been split into X/y test/train datasets, we also included smote datasets to account for class imbalance. 
+
+```{r}
+X_normal_train = read.csv("X_train.csv")
+y_normal_train = read.csv("y_train.csv")
+X_smote_train = read.csv("X_smote_train.csv")
+y_smote_train = read.csv("y_smote_train.csv")
+X_normal_test = read.csv("X_test.csv")
+y_normal_test = read.csv("y_test.csv")
+X_smote_test = read.csv("X_smote_test.csv")
+y_smote_test=read.csv("y_smote_test.csv")
+
+```
+
+Now all the datsets are downloaded, since K-NN is a distance based algorithm, it is important that I "scale" my data. This can be done in two ways: 
+
+* Standardising 
+
+* Normalising
+
+To determine which method for handing my data is better, I am going to run a downsampled 10-fold cross-validation method to find which data transformation has the better accuracy on the test sets for the normal data and SMOTE. I will also run this 10-fold CV for multiple choices of K as this is a hyperparamter in my K-NN model to evaluate the best performing model while also considering computation time. 
+
+
+
+
+```{r}
+#combining X_train and y_train to trained dataset 
+set.seed(123)
+train_data <- cbind(y_normal_train, X_normal_train)
+#dim(train_data)
+
+sample_train = sample_n(train_data,40000)
+
+#using the min-max mehtod to normalise the data
+process <- preProcess(as.data.frame(sample_train), method=c("range"))
+norm_train_df <- predict(process, as.data.frame(sample_train))
+
+#checking dimensions
+#dim(norm_train_df)
+
+X_norm_sample = select(norm_train_df, -DEP_DEL15)
+y_norm_sample = norm_train_df$DEP_DEL15
+```
+
+The same is done for the SMOTE dataframe...
+```{r}
+set.seed(123)
+#combining X_train and y_train to trained dataset 
+train_smote <- cbind(y_smote_train, X_smote_train)
+dim(train_smote)
+
+sample_smote = (sample_n(train_data, 40000))
+
+#Normalising using min-max 
+process <- preProcess(as.data.frame(sample_smote), method=c("range"))
+norm_smote <- predict(process, as.data.frame(sample_smote))
+dim(norm_smote)
+
+X_smote_norm = select(norm_smote, -DEP_DEL15)
+y_smote_norm = norm_smote$DEP_DEL15
+```
+
+Now with downsampled training data, I run a 10-fold cross validation over 10 different values of K to find a sutable size for the hyperparamter K, with normal or standardised data. Note this is for the original training dataset (without smote).
+
+
+```{r}
+set.seed(123) #setting seed for reproducible data
+
+
+#K-fold Cross-validation
+n = nrow(scale_train_df)
+k_values <- seq(1,sqrt(n),30)
+K <- 10
+sets <- sample( rep(1:K,n)[1:n], n)
+
+test_error_knn <- rep(0,length(k_values))
+for (k in 1:K)
+{
+test_set <- which(sets==k)
+train_set <- (1:n)[-test_set]
+X_train <- X_norm_sample[train_set,]
+X_test <- X_norm_sample[test_set,]
+y_train <- y_norm_sample[train_set]
+y_test <- y_norm_sample[test_set]
+
+# For each k.value fit knn classifier and find test error
+for (i in 1:length(k_values)) {
+y_test_pred <- knn(train=X_train,
+test=X_test,
+cl=y_train,
+k=k_values[i])
+test_error_knn[i] <- test_error_knn[i] + sum(y_test_pred!=y_test)
+}
+}
+test_error_knn <- test_error_knn/n
+
+
+plot(k_values,
+test_error_knn,
+type="b",
+col = "blue",
+main="Test errors for KNN")
+
+```
+Here there is an obvious elbow at K=31, however since the scale is so large its hard to tell the optimal k and which scale is best for the data. So I perform the KNN-test-error again on a smaller subset of K from (1,30) to find the best k
+```{r}
+set.seed(123) #setting seed for reproducible data
+#K-fold Cross-validation
+n = nrow(scale_train_df)
+k_values <- seq(1,31,4)
+K <- 10
+sets <- sample( rep(1:K,n)[1:n], n)
+
+test_error_knn <- rep(0,length(k_values))
+for (k in 1:K)
+{
+test_set <- which(sets==k)
+train_set <- (1:n)[-test_set]
+X_train <- X_norm_sample[train_set,]
+X_test <- X_norm_sample[test_set,]
+y_train <- y_norm_sample[train_set]
+y_test <- y_norm_sample[test_set]
+
+# For each k.value fit knn classifier and find test error
+for (i in 1:length(k_values)) {
+y_test_pred <- knn(train=X_train,
+test=X_test,
+cl=y_train,
+k=k_values[i])
+test_error_knn[i] <- test_error_knn[i] + sum(y_test_pred!=y_test)
+}
+}
+test_error_knn <- test_error_knn/n
+
+
+library("data.table")
+#Make table of results 
+df = list( k_values = k_values,
+              error_normalised = test_error_knn )
+DT_2 <- data.table(do.call(cbind, df))    # Transform list to data.table
+DT_2
+
+```
+From the table we can see that the smallest error for the normal undersampled data, is at K=21 with normalised data. Hence this will be used for model training and the ROC curve. 
+
+ 
+
+```{r}
+set.seed(123)
+k_values <- seq(1,sqrt(n),30)
+
+#K-fold Cross-validation
+n = nrow(sample_smote)
+K <- 10
+sets <- sample( rep(1:K,n)[1:n], n)
+
+test_error_knn_smote <- rep(0,length(k_values))
+for (k in 1:K)
+{
+test_set <- which(sets==k)
+train_set <- (1:n)[-test_set]
+X_train <- X_smote_norm[train_set,]
+X_test <- X_smote_norm[test_set,]
+y_train <- y_smote_norm[train_set]
+y_test <- y_smote_norm[test_set]
+
+# For each k.value fit knn classifier and find test error
+for (i in 1:length(k_values)) {
+y_test_pred <- knn(train=X_train,
+test=X_test,
+cl=y_train,
+k=k_values[i])
+test_error_knn_smote[i] <- test_error_knn_smote[i] + sum(y_test_pred!=y_test)
+}
+}
+test_error_knn_smote <- test_error_knn_smote/n
+
+plot(k_values,
+test_error_knn_smote,
+type="b",
+col = "blue",
+main="Test errors for KNN smote")
+
+```
+
+```{r}
+set.seed(123)
+k_values <- seq(1,31,5)
+
+#K-fold Cross-validation
+n = nrow(sample_smote)
+K <- 10
+sets <- sample( rep(1:K,n)[1:n], n)
+
+test_error_knn_smote1 <- rep(0,length(k_values))
+for (k in 1:K)
+{
+test_set <- which(sets==k)
+train_set <- (1:n)[-test_set]
+X_train <- X_smote_norm[train_set,]
+X_test <- X_smote_norm[test_set,]
+y_train <- y_smote_norm[train_set]
+y_test <- y_smote_norm[test_set]
+
+# For each k.value fit knn classifier and find test error
+for (i in 1:length(k_values)) {
+y_test_pred <- knn(train=X_train,
+test=X_test,
+cl=y_train,
+k=k_values[i])
+test_error_knn_smote1[i] <- test_error_knn_smote1[i] + sum(y_test_pred!=y_test)
+}
+}
+test_error_knn_smote1 <- test_error_knn_smote1/n
+
+library("data.table")
+#Make table of results 
+df = list( k_values = k_values,
+             error_normalised = test_error_knn_smote1 )
+DT_2 <- data.table(do.call(cbind, df))    # Transform list to data.table
+DT_2
+
+```
+
+As you can see from both tables of a subset of K, the K with the smallest test error is K=21, for both datasets scaled. This is what I will use when training my model to find accuracy and the ROC curve. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
