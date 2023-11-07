@@ -1,0 +1,183 @@
+---
+title: "KNN training and testing"
+author: "Abbie Hayward"
+date: "2023-11-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Model development for KNN
+
+From preliminary work for fine-tuning my model in the "finding K" rmd file, I found that for 10-fold cross validation an optimal K to look at would be K=21, on a standardised dataset.
+
+
+# Code for ROC curve and training
+
+
+```{r}
+require("pROC")
+learnmodel=function(modelclass,formula,train,test, 
+                    predictfn=function(x,newdata)predict(x,newdata,type="response"),
+                    ...){ 
+  ## Start by sorting out the formula target
+  if(class(formula)=="character") formula=formula(formula)
+  y=as.character(formula[2])
+  
+  ## Now run the learning 
+  model=modelclass(formula,data=train,...)
+  
+  ## Predict on training data
+  trainpred0=predictfn(model,newdata=train)
+  trainpred=ifelse(trainpred0 > 0.5,1,0)
+  
+  ## Predict on testing data
+  testpred0=predictfn(model,newdata=test)
+  testpred=ifelse(testpred0 > 0.5,1,0)
+  
+  ## Organise the data for return
+  trainres=data.frame(truth=train[,y],pred=trainpred,pred0=trainpred0)
+  testres=data.frame(truth=test[,y],pred=testpred,pred0=testpred0)
+  
+  ## Compute ROC
+  testroc=roc(truth~pred0,data=as.data.frame(testres))
+  list(model=model,
+       trainres=trainres,
+       testres=testres,
+       train=train,
+       test=test,
+       roc=testroc)
+}
+```
+
+## 1.2.2 KNN
+```{r}
+library("class")
+knnclass=function(formula,data,k){
+  ## knn does not provide the usual interface, so we define it from scratch here
+  ## We need to know what the x and y parts of y~x are, and to store all the data and k
+  if(class(formula)=="character") formula=formula(formula)
+  y=as.character(formula[2])
+  x=labels(terms(formula, data=data))
+  ret=list(formula=formula,train=data,k=k,x=x,y=y)
+  class(ret)="knnclass"
+  ret
+}
+predict.knnclass=function(x,newdata,...){
+  ## knn can now be run on the new data. It returns the results as a factor with attributes "pr" where the probability of that classification is made. So we have to transform this into a probability.
+  predtmp=knn(x$train[,x$x], newdata[,x$x], x$train[,x$y], k = x$k, prob=TRUE)
+  pred0=attr(predtmp,"pr")
+  pred=as.numeric(predtmp)-1
+  pred0[pred==0]= 1-pred0[pred==0
+]
+  pred0
+}
+```
+
+
+```{r}
+X_normal_train = read.csv("X_train.csv")
+y_normal_train = read.csv("y_train.csv")
+X_smote_train = read.csv("X_smote_train.csv")
+y_smote_train = read.csv("y_smote_train.csv")
+X_normal_test = read.csv("X_test.csv")
+y_normal_test = read.csv("y_test.csv")
+X_smote_test = read.csv("X_smote_test.csv")
+y_smote_test=read.csv("y_smote_test.csv")
+
+```
+
+```{r}
+library(caret)
+#making full test and train dataset, scaled.
+train = cbind(y_normal_train, X_normal_train)
+test = cbind(y_normal_test, X_normal_test)
+train_smote = cbind(y_smote_train, X_smote_train)
+
+process <- preProcess(as.data.frame(train), method=c("range"))
+norm_train <- predict(process, as.data.frame(train))
+
+process <- preProcess(as.data.frame(test), method=c("range"))
+norm_test <- predict(process, as.data.frame(test))
+
+process <- preProcess(as.data.frame(train_smote), method=c("range"))
+norm_smote_train <- predict(process, as.data.frame(train_smote))
+ #note may need to run again to test on the original data due to synthetic dataframe
+```
+
+
+#Normal model
+```{r}
+set.seed(123)
+knnmodel=learnmodel(knnclass,DEP_DEL15~.,norm_train,norm_test,k=21,predictfn=predict.knnclass)
+plot(knnmodel$roc)
+```
+
+```{r}
+library(dplyr)
+#knnmodel[["roc"]]
+predicted_normal = as.data.frame(knnmodel[["testres"]][["pred"]])
+predicted_normal %>% 
+  rename(
+    prediction = knnmodel[["testres"]][["pred"]]
+    )
+
+#knnmodel[["roc"]]
+write.csv(predicted_normal,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/predicted_normal.csv")
+```
+
+
+```{r}
+# sensitivity and specificity to plot false positive rate and true positive rate
+sensitivity_normal = as.data.frame(knnmodel[["roc"]][["sensitivities"]])
+specificity_normal = as.data.frame(knnmodel[["roc"]][["specificities"]])
+sens_spec_norm = cbind(sensitivity_normal, specificity_normal)
+write.csv(sens_spec_norm,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/sens_spec_norm.csv")
+```
+
+#Smote model
+```{r}
+set.seed(123)
+knnmodel_smote=learnmodel(knnclass,DEP_DEL15~.,norm_smote_train,norm_test,k=21,predictfn=predict.knnclass)
+plot(knnmodel_smote$roc)
+knnmodel_smote[["roc"]]
+```
+
+
+
+
+```{r}
+
+predicted_smote = as.data.frame(knnmodel_smote[["testres"]][["pred"]])
+predicted_smote %>% 
+  rename(
+    prediction = knnmodel[["testres"]][["pred"]]
+    )
+
+write.csv(predicted_smote,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/predicted_smote.csv")
+
+```
+
+
+```{r}
+#sensitivity and specificity to plot false positive rate and true positive rate
+sensitivity_smote = as.data.frame(knnmodel_smote[["roc"]][["sensitivities"]])
+specificity_smote = as.data.frame(knnmodel_smote[["roc"]][["specificities"]])
+sens_spec_smote = cbind(sensitivity_smote, specificity_smote)
+write.csv(sens_spec_smote,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/sens_spec_smote.csv")
+```
+
+```{r}
+
+
+pred_probs_knn_original = as.data.frame(knnmodel[["testres"]][["pred0"]])
+pred_probs_knn_smote =  as.data.frame(knnmodel_smote[["testres"]][["pred0"]])
+write.csv(pred_probs_knn_original,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/pred_probs_knn_original.csv")
+write.csv(pred_probs_knn_smote,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/pred_probs_knn_smote.csv")
+```
+
+
+
+
