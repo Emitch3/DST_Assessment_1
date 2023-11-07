@@ -6,11 +6,11 @@ output:
 ---
 
 ## Introduction
-In this project, we explored the performance of supervised machine learning models to predict flight delays. The project made use of **six?** different classification models (Logistic Regression, K-Nearest Neighbours, Gaussian Naïve Bayes, Decision Tree, Neural Networks, Gradient Boosted Tree) which were trained and tested on our flight data set. The performance of each of the binary classification predictions was then evaluated against our performance evaluation metrics which we have defined in *section 08*. The theoretical aspects of our chosen models and the performance evaluation metrics are explained in each relevant section. We present our conclusions in *section 09*.
+In this project, we explore the performance of supervised machine learning models to predict flight delays. The project made use of different classification models (Logistic Regression, K-Nearest Neighbours, Gaussian Naïve Bayes, Decision Tree methods) which are trained and tested on our flight data set. A key aspect of this project examines the problem of class imbalance in binary classification. The performance of each model is evaluated and compared using performance evaluation metrics and graphical evaluation methods which we discuss in *section 07*. The theoretical aspects of our chosen models and the performance evaluation metrics are explained in each relevant section. We present our conclusions in *section 07*.
 
 ## Data Set Description
 
-The data set we are using for this project is the open dataset *"2019 Airline Delays w/Weather and Airport Detail"*, sourced from Kaggle via the address [<https://www.kaggle.com/datasets/threnjen/2019-airline-delays-and-cancellations>]. This data set contains data about US domestric flights departing during 2019, including data on the weather and airport conditions on each departure date. In our analysis, a flight is considered to be delayed when it incurs a delay of 15 minutes or more. This data set is of size 6489062 x 26.
+The data set we are using for this project is the open data set *"2019 Airline Delays w/Weather and Airport Detail"*, sourced from Kaggle via the address [<https://www.kaggle.com/datasets/threnjen/2019-airline-delays-and-cancellations>]. This data set contains data about US domestic flights which took place in 2019, including data on the weather and airport conditions on each departure date. In our analysis, a flight is considered to be delayed when it incurs a delay of 15 minutes or more. This data set is of size 6489062 x 26.
 
 A detailed description of the data set features is provided below.
 
@@ -52,7 +52,71 @@ kable(column_descriptions, format = "html") %>%
 
 \newline
 
-For the purposes of this project, we decided to perform the binary classification on flights departing from "John F. Kennedy International Airport" in order to keep the data set to a manageable size. The choice of "John F. Kennedy International Airport" is somewhat arbitrary, however this decision was informed by exploratory data analysis (*section 02)* which told us that this airport is not an outlier in terms of proportions of delays.
+We provide some EDA based around the departing airports.
+```{r echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(ggplot2) 
+library(readr)
+library(dplyr)
+flightData <- read_csv("C:/Users/USER/OneDrive/Bristol Year 4/Data Science Toolbox/Group Assessments/Assessment 1/full_data_flightdelay.csv")
+delayed_flights = filter(flightData, flightData$DEP_DEL15 == 1)
+us_map <- map_data("usa") # map of the US
+ 
+ map_plot <- ggplot() +
+   geom_polygon(data = us_map, aes(x = long, y = lat, group = group), fill = NA, color = "black", alpha = 0.5) +
+   coord_fixed(ratio = 1)   # Ensure aspect ratio is 1:1
+ ggplot(delayed_flights, aes(x = LONGITUDE, y = LATITUDE)) +
+   geom_density_2d() +
+   coord_fixed(ratio = 1) +  # Ensure aspect ratio is 1:1
+   labs(title = "Density Plot of Departing Airports with Delayed Flights") +
+   geom_polygon(data = us_map, aes(x = long, y = lat, group = group), fill = "white", color = "black", alpha = 0.5) 
+# (slow)
+```
+
+
+```{r, results='asis', echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyr)
+# Calculate the count of delayed flights by departing airport
+ delayed_counts <- delayed_flights %>%
+   group_by(DEPARTING_AIRPORT) %>%
+   summarize(delayed_count = n())
+
+ total_counts <- flightData %>%
+   group_by(DEPARTING_AIRPORT) %>%
+   summarize(total_count = n())
+
+ airport_proportions <- left_join(delayed_counts, total_counts, by = "DEPARTING_AIRPORT") %>%
+   mutate(proportion_delayed = delayed_count / total_count) %>%
+   arrange(desc(proportion_delayed))
+ 
+# ggplot(airport_proportions, aes(x = reorder(DEPARTING_AIRPORT, -proportion_delayed), y = proportion_delayed)) +
+#   geom_bar(stat = "identity", fill = "blue") +
+#   labs(
+#     title = "Proportion of Delayed Flights by Departing Airport",
+#     x = "Departing Airport",
+#     y = "Proportion Delayed"
+#   ) +
+#   theme_minimal() +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ 
+# Outliers # 
+ # IQR method
+iqr <- IQR(airport_proportions$proportion_delayed)
+q1 <- quantile(airport_proportions$proportion_delayed, 0.25)
+q3 <- quantile(airport_proportions$proportion_delayed, 0.75)
+lower_bound <-  q1 - 1.5 * iqr
+upper_bound <- q3 + 1.5 * iqr
+outliers <- airport_proportions %>%
+  filter(proportion_delayed > upper_bound | delayed_count < lower_bound)
+outliers_table <- kable(outliers, "html",caption = "Airport outliers based on proportion of flight delays") 
+print(outliers_table)
+```
+
+
+
+\newline
+## JFK Flight Data
+\newline
+For the purposes of this project, we decided to perform the binary classification on flights departing from "John F. Kennedy International Airport" in order to keep the data set to a manageable size. The choice of "John F. Kennedy International Airport" is somewhat arbitrary, however this decision was informed by exploratory data analysis which told us that this airport is not an outlier in terms of proportions of delays.
 
 We then removed the features "DEPARTING_AIRPORT", "AIRPORT_FLIGHTS_MONTH", "LATITUDE", "LONGITUDE", "AVG_MONTHLY_PASS_AIRPORT", as these no longer have value in our reduced data set.
 
@@ -60,7 +124,7 @@ The JFK airport data set is of size 125109 x 21, with no missing values.
 
 A detailed description of the JFK Airport data set features is provided below.
 
-```{r, results='asis', echo=FALSE, warning=FALSE, message=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
 library(dplyr)
 library(knitr)
 library(kableExtra)
@@ -92,4 +156,3 @@ kable(column_descriptions, format = "html") %>%
   column_spec(1, width = "20%") %>%
   column_spec(2, width = "80%")
 ```
-
