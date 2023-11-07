@@ -1,44 +1,56 @@
 ---
 title: "Finding best K for KNN"
 author: "Abbie Hayward"
-date: "2023-10-30"
-output: html_document
+date: "2023-11-05"
+output:
+  rmdformats::readthedown:
+    code_folding: hide
+    fig_width: 8
+    fig_height: 8
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 ```
 
-Data set available at "https://www.kaggle.com/datasets/threnjen/2019-airline-delays-and-cancellations".
+## Introduction and set-up
+
+For this project the aim of our report is to create models to perform binary classifications on a flight delay dataset, and to perform a model comparison by a specified rubric.
+The data we use for the entire project is available at: 
+ "https://www.kaggle.com/datasets/threnjen/2019-airline-delays-and-cancellations".
+ 
+ 
 
 ```{r}
-if(!require("knitr")) install.packages("knitr")
-if(!require("MASS")) install.packages("MASS")
-if(!require("class")) install.packages("class")
-if(!require("e1071")) install.packages("e1071")
-if(!require("pROC")) install.packages("pROC")
-if(!require("devtools")) install.packages("devtools")
-library("devtools") # for install_github
-if(!require("fastAdaboost")) devtools::install_github("souravc83/fastAdaboost")
-library("knitr") # 
-library("MASS") # For logistic regression
+#packages required for report 
+install_packages = function(install = FALSE) {
+  if (install == TRUE) {
+    packages = c("knitr","tidyverse", "class", "readr", "pROC", "dplyr","fastDummies", "tidyr", "caret", "FNN")
+
+    
+    for (p in packages) { install.packages(p) }
+  }
+}
+
+#To install packages required set (install = TRUE), you only need to do this once
+install_packages(install = FALSE)
+library("knitr") 
 library("class") # For knn
-library("e1071") # For SVM
 library("pROC") # For ROCs
-library("fastAdaboost") # For adaboost
-library(readr)
-library(tidyr)
-library(dplyr)
-library(tidyverse)
-library(fastDummies)
-library(caret)
+library("readr")
+library("tidyr")
+library("dplyr")
+library("tidyverse")
+library("fastDummies")
+library("caret")
 ```
 
 ```{r}
-setwd("~/Data Science Toolbox")
+#setwd("~/Data Science Toolbox")
 ```
 
-From previous analysis, the dataset has been split into X/y test/train datasets, we also included smote datasets to account for class imbalance. 
+From previous exploratory data analysis (EDA), the flight dataset has been split into X/y, 80:20 train:test sets. Within the EDA, we found a large class imbalance from those flights that were defined as "delayed" (late by 15 minutes) being dominated by those not delayed. To account for the imbalance we found SMOTE to be one of the best performing techniques at creating a balanced dataset. **Input something about smote**
+
 
 ```{r}
 X_normal_train = read.csv("X_train.csv")
@@ -52,15 +64,17 @@ y_smote_test=read.csv("y_smote_test.csv")
 
 ```
 
-Now all the datsets are downloaded, since K-NN is a distance based algorithm, it is important that I "scale" my data. This can be done in two ways: 
+Now all the datsets are downloaded, since K-NN is a distance based algorithm, it is important that I "scale" my data. To keep my data within [0,1] although this doesn't handle outliers as well as standardisation, normalization is useful when you don't know the distribution of data, or the model you're implimenting does not use any underlying assumptions about distribution, like K-NN [1]. It's also useful when data has varying scales, which affect an algorithm like K-NN drastically where larger features dominate the distance calculations. 
 
-* Standardising 
+The method I used to create my "scaled" data set, was the min-max normalisation with the `preProcess()` function. [2]
 
-* Normalising
+[2] (https://www.geeksforgeeks.org/how-to-normalize-and-standardize-data-in-r/)
+[1] https://towardsai.net/p/data-science/how-when-and-why-should-you-normalize-standardize-rescale-your-data-3f083def38ff
 
-To determine which method for handing my data is better, I am going to run a downsampled 10-fold cross-validation method to find which data transformation has the better accuracy on the test sets for the normal data and SMOTE. I will also run this 10-fold CV for multiple choices of K as this is a hyperparamter in my K-NN model to evaluate the best performing model while also considering computation time. 
+To determine which hyperparameter K is "better" for the K-NN classification, I am going to run a downsampled 10-fold cross-validation method to find which K has the better accuracy on the test sets for the normal data and SMOTE.
+Downsampling is used to reduce processing speed as K-NN is a **computationally intense** algorithm, with long implementation time, and since this is only for tuning the parameters we don't need all data to train and test the model.
 
-
+## K evaluation on original dataset
 
 
 ```{r}
@@ -108,7 +122,7 @@ set.seed(123) #setting seed for reproducible data
 
 
 #K-fold Cross-validation
-n = nrow(scale_train_df)
+n = nrow(norm_train_df)
 k_values <- seq(1,sqrt(n),30)
 K <- 10
 sets <- sample( rep(1:K,n)[1:n], n)
@@ -146,7 +160,7 @@ Here there is an obvious elbow at K=31, however since the scale is so large its 
 ```{r}
 set.seed(123) #setting seed for reproducible data
 #K-fold Cross-validation
-n = nrow(scale_train_df)
+n = nrow(norm_train_df)
 k_values <- seq(1,31,4)
 K <- 10
 sets <- sample( rep(1:K,n)[1:n], n)
@@ -264,7 +278,9 @@ DT_2
 
 As you can see from both tables of a subset of K, the K with the smallest test error is K=21, for both datasets scaled. This is what I will use when training my model to find accuracy and the ROC curve. 
 
-
+## References 
+[1]  https://towardsai.net/p/data-science/how-when-and-why-should-you-normalize-standardize-rescale-your-data-3f083def38ff
+[2] (https://www.geeksforgeeks.org/how-to-normalize-and-standardize-data-in-r/)
 
 
 
