@@ -19,12 +19,12 @@ The report takes the following structure:
 
 * 01-Introduction.html
 * 02-EDA.Rmd
-* 03-Data Transformation + Baseline Model.ipynb
+* 03-Data Transformation + Logistic Regression.ipynb
 * 04-Abbie_model.ipynb
-* 05-Arun_model.ipynb
+* 05-Naive Bayes.ipynb
 * 06-Decision Trees and Ensemble Tree Methods.ipynb
-* 08-Model_performance_evaluation.ipynb
-* 09-Conclusion.html
+* 07-Model Performance Comparison + Conclusion.ipynb
+
 
 
 With html output of the Rmd content included for convenience.
