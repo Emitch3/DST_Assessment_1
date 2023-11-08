@@ -1,0 +1,288 @@
+---
+title: "R Flight Data EDA"
+author: "Ewan Mitchell"
+output:
+  html_document:
+    df_print: paged
+fig_width: 15
+fig_height: 15
+---
+
+```{r}
+library(readr)
+library(dplyr)       # For data manipulation
+library(ggplot2)     # For data visualization
+library(summarytools) # For summary statistics
+library(tidyr)
+library(knitr)
+library(corrplot)
+library(factoextra)
+library(RColorBrewer)
+```
+
+## 2019 Airline Delays with Weather and Airport Detail
+This data set is about flight delays in the United States, providing  detailed information about airline, weather, airport and employment conditions. The aim of exploring this data set is to study the correlation between features and flight delays with the eventual goal, in Assessment 1, of performing a binary classification on this data set.
+
+
+Data set available at "https://www.kaggle.com/datasets/threnjen/2019-airline-delays-and-cancellations".
+
+```{r}
+flightData <- read_csv("C:/Users/USER/OneDrive/Bristol Year 4/Data Science Toolbox/Group Assessments/Assessment 1/jfk_flight_data.csv")
+```
+
+We present the features of the data set. 
+
+```{r, results='asis'}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+column_descriptions <- data.frame(
+  Feature = c(
+    "MONTH", "DAY_OF_WEEK", "DEP_DEL15", "DEP_TIME_BLK", "DISTANCE_GROUP", 
+    "SEGMENT_NUMBER", "CONCURRENT_FLIGHTS", "NUMBER_OF_SEATS", "CARRIER_NAME", 
+    "AIRLINE_FLIGHTS_MONTH", "AIRLINE_AIRPORT_FLIGHTS_MONTH", 
+    "AVG_MONTHLY_PASS_AIRLINE", "FLT_ATTENDANTS_PER_PASS", 
+    "GROUND_SERV_PER_PASS", "PLANE_AGE", "PREVIOUS_AIRPORT", "PRCP", "SNOW", "SNWD", "TMAX", "AWND"
+  ),
+  Description = c(
+    "Month", "Day of Week", "(TARGET) Departure Delay Indicator, 15 Minutes or More (1=Yes)", 
+    "CRS Departure Time Block, Hourly Intervals", "Distance group to be flown by departing aircraft", 
+    "The segment that this tail number is on for the day", "Concurrent flights leaving from the airport in the same departure block", 
+    "Number of seats on the aircraft", "Carrier", 
+    "Avg Airline Flights per Month", "Avg Flights per month for Airline AND Airport", "Avg Passengers for airline for month", 
+    "Flight attendants per passenger for airline", "Ground service employees (service desk) per passenger for airline", 
+    "Age of departing aircraft", "Previous airport that aircraft departed from", 
+    "Inches of precipitation for day", "Inches of snowfall for day", 
+    "Inches of snow on ground for day", "Max temperature for day", "Max wind speed for day"
+  )
+)
+
+kable(column_descriptions, format = "html") %>%
+  kable_styling(full_width = FALSE) %>%
+  row_spec(0, bold = TRUE) %>%
+  column_spec(1, width = "20%") %>%
+  column_spec(2, width = "80%")
+```
+
+```{r}
+glimpse(flightData)
+
+head(flightData)
+
+summary(flightData)
+
+missing_values <- flightData %>%
+  summarise_all(~ sum(is.na(.)))
+
+missing_values
+```
+
+### Examining the proportion of delays by carrier.
+```{r}
+# Bar chart of carrier vs proportion of delays
+delayed_proportions <- flightData %>%
+  group_by(CARRIER_NAME) %>%
+  summarize(proportion_delayed = mean(DEP_DEL15 == 1))
+
+ggplot(delayed_proportions, aes(x = CARRIER_NAME, y = proportion_delayed)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  labs(
+    title = "Proportion of Delayed Flights by Carrier",
+    x = "Carrier",
+    y = "Proportion Delayed"
+  ) +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+We see that "SkyWest Airlines Inc." and "JetBlue Airways" have the highest proportions of delayed flights, while "Comair Inc," has the lowest.
+
+### Examining the proportion of delays by month of the year.
+```{r}
+
+delayed_proportions <- flightData %>%
+  group_by(MONTH) %>%
+  summarize(proportion_delayed = mean(DEP_DEL15 == 1))
+
+#flightData$MONTH <- factor(flightData$MONTH, levels = month.abb)
+
+ggplot(delayed_proportions, aes(x = MONTH, y = proportion_delayed)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  labs(
+    title = "Proportion of Delayed Flights by Month",
+    x = "Month",
+    y = "Proportion Delayed"
+  ) +
+  theme_minimal() + 
+ scale_x_discrete(limits = month.abb)
+
+```
+
+We can observe a peak at June, July and December, which may be due to the the holiday seasons, while September, October and November have the lowest which may be because they are typically not holiday months.
+
+
+### Examining the proportion of delays by day of the week.
+```{r}
+delayed_proportions <- flightData %>%
+  group_by(DAY_OF_WEEK) %>%
+  summarize(proportion_delayed = mean(DEP_DEL15 == 1))
+
+day_order <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+
+#flightData$DAY_OF_WEEK <- factor(flightData$DAY_OF_WEEK, levels = day_order)
+
+ggplot(delayed_proportions, aes(x = DAY_OF_WEEK, y = proportion_delayed)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  labs(
+    title = "Proportion of Delayed Flights by Day of the Week",
+    x = "Day of the Week",
+    y = "Proportion Delayed"
+  ) +
+  theme_minimal() + 
+  scale_x_discrete(limits = day_order)
+
+```
+
+The appears to only be slight variation between days of the week.
+
+### Examining the proportion of delays by departure block.
+```{r}
+delayed_proportions <- flightData %>%
+  group_by(DEP_TIME_BLK) %>%
+  summarize(proportion_delayed = mean(DEP_DEL15 == 1))
+
+
+ggplot(delayed_proportions, aes(x = DEP_TIME_BLK, y = proportion_delayed, fill = DEP_TIME_BLK)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Proportion of Delayed Flights by Departure Time Block",
+    x = "Departure Time Block",
+    y = "Proportion Delayed"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+We see that there is a rise in the proportion of flight delays up to 12am where it drops back down. The highest proportions of flight delays are in the evening at departure blocks between 6pm - 12am.
+
+# Examining the proportion of delays by Previous Airport.
+```{r}
+
+delayed_proportions_airport <- flightData %>%
+  group_by(PREVIOUS_AIRPORT) %>%
+  summarize(proportion_delayed = mean(DEP_DEL15 == 1)) %>%
+  arrange(desc(proportion_delayed))
+
+# Select top N airports and group the rest as 'Others'
+top_airports <- delayed_proportions_airport %>% top_n(30)  # Selecting top 30 airports
+
+
+other_airports <- delayed_proportions_airport %>% anti_join(top_airports, by = "PREVIOUS_AIRPORT") %>%
+  summarize(PREVIOUS_AIRPORT = "Others", proportion_delayed = mean(proportion_delayed))
+
+plot_data <- bind_rows(top_airports, other_airports)
+
+
+ggplot(plot_data, aes(x = factor(PREVIOUS_AIRPORT, levels = c(as.character(top_airports$PREVIOUS_AIRPORT), "Others")), y = proportion_delayed)) +
+  geom_col(fill = "blue") +
+  labs(
+    title = "Proportion of Delayed Flights by Previous Airport",
+    x = "Previous Airport",
+    y = "Proportion Delayed"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+```
+
+
+# Corr plot of all numerical variables
+```{r}
+filtered_data <- flightData %>%
+  select_if(is.numeric)
+
+corr <- cor(filtered_data)
+
+corrplot(corr, method = "color", type = "upper", order = "hclust", tl.cex = 0.6, title = "Correlation Plot of Numeric Features")
+
+```
+
+
+
+### Examining the correlation between airport information + flight delays
+We look at only numeric features that concern the departing airport and airline and the flight departures, and perform correlation analysis and PCA.
+
+```{r}
+
+airport_vars <- c(
+  "AIRLINE_FLIGHTS_MONTH", "AIRLINE_AIRPORT_FLIGHTS_MONTH",
+  "AVG_MONTHLY_PASS_AIRLINE",
+  "FLT_ATTENDANTS_PER_PASS", "GROUND_SERV_PER_PASS", "PLANE_AGE",
+  "DEP_DEL15"
+)
+
+filtered_data <- flightData %>%
+  select(all_of(airport_vars))
+
+corr <- cor(filtered_data)
+
+corrplot(corr, method = "color", type = "upper", order = "hclust", tl.cex = 0.6, title = "Correlation Plot of airport Features + DEP_DEL15")
+
+
+```
+
+```{r}
+
+outpca <- prcomp(filtered_data, center = TRUE, scale. = TRUE)
+
+p1 <- fviz_eig(outpca)
+p1
+
+p2 <- fviz_pca_var(outpca,
+                   axes = c(1, 2), 
+                   col.var = "contrib", 
+                   gradient.cols = brewer.pal(n = 10, name = "RdBu"),
+                   repel = TRUE
+)
+p2
+
+```
+
+Based on the correlation plot and the pca feature plot, We observe a correlation between the flight delays variable - "DEP_DEL15" and the variables, "AIRLINE_AIRPORT_FLIGHTS_MONTH", with which it has the largest correlation and "FLT_ATTENDANTS_PER_PASS" and "PLANE_AGE".
+
+### Examining the correlation between weather information + flight delays
+We look at only numeric features that concern the weather and the flight departures, and perform correlation analysis and PCA.
+
+```{r}
+weather_vars <- c("PRCP",	"SNOW",	"SNWD",	"TMAX", "AWND", "DEP_DEL15")
+
+filtered_data <- flightData %>%
+  select(all_of(weather_vars))
+
+corr <- cor(filtered_data)
+
+corrplot(corr, method = "color", type = "upper", order = "hclust", tl.cex = 0.6, title = "Correlation Plot of Weather Features + DEP_DEL15")
+```
+
+
+```{r}
+
+outpca <- prcomp(filtered_data, center = TRUE, scale. = TRUE)
+
+p1 <- fviz_eig(outpca)
+p1
+
+p2 <- fviz_pca_var(outpca,
+                   axes = c(1, 2), 
+                   col.var = "contrib", 
+                   gradient.cols = brewer.pal(n = 10, name = "RdBu"),
+                   repel = TRUE
+)
+p2
+
+```
+
+Based on the correlation plot and the pca feature plot, we can observe a positive correlation between "DEP_DEL15" and "PRCP" with which it has the highest correlation and "SNOW" and "SWND".
+
+
