@@ -20,7 +20,7 @@ The report takes the following structure:
 * 01-Introduction.html
 * 02-EDA.Rmd
 * 03-Data Transformation + Logistic Regression.ipynb
-* 04-Abbie_model.ipynb
+* 04-K-NN.ipynb
 * 05-Naive Bayes.ipynb
 * 06-Decision Trees and Ensemble Tree Methods.ipynb
 * 07-Model Performance Comparison + Conclusion.ipynb
