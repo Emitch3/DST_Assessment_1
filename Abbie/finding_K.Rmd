@@ -1,0 +1,313 @@
+---
+title: "Finding best K for KNN"
+author: "Abbie Hayward"
+date: "2023-11-05"
+output:
+  rmdformats::html_clean:
+    code_folding: hide
+    fig_width: 8
+    fig_height: 8
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+## Introduction and set-up
+
+For this project the aim of our report is to create models to perform binary classifications on a flight delay dataset, and to perform a model comparison by a specified metric.
+
+The data we use for the entire project is available at: 
+https://www.kaggle.com/datasets/threnjen/2019-airline-delays-and-cancellations
+ 
+ 
+
+```{r}
+#packages required for report 
+install_packages = function(install = FALSE) {
+  if (install == TRUE) {
+    packages = c("knitr","tidyverse", "class", "readr", "pROC", "dplyr","fastDummies", "tidyr", "caret", "FNN")
+
+    
+    for (p in packages) { install.packages(p) }
+  }
+}
+
+#To install packages required set (install = TRUE), you only need to do this once
+install_packages(install = FALSE)
+library("knitr") 
+library("class") # For knn
+library("pROC") # For ROCs
+library("readr")
+library("tidyr")
+library("dplyr")
+library("tidyverse")
+library("fastDummies")
+library("caret")
+library("kableExtra")
+```
+
+Prior to this K-exploration report, exploratory data analysis (EDA) was performed. Within the initial EDA, we found a large class imbalance for our predictor variable, in which flights that were defined as "not delayed" dominated in proportion to that of those defined as delayed. To account for this imbalance we used the SMOTE technique to create a balanced dataset in which the binary variables were represented more fairly. 
+
+Alongside creating a SMOTE dataset, all data has been preliminary split into X/Y sets with and 80:20 test:train split. Note, for this section of determining an "optimal" K, the test sets are not used.
+
+The code cell below reads all the data: 
+```{r}
+X_normal_train = read.csv("X_train.csv")
+y_normal_train = read.csv("y_train.csv")
+X_smote_train = read.csv("X_smote_train.csv")
+y_smote_train = read.csv("y_smote_train.csv")
+X_normal_test = read.csv("X_test.csv")
+y_normal_test = read.csv("y_test.csv")
+X_smote_test = read.csv("X_smote_test.csv")
+y_smote_test=read.csv("y_smote_test.csv")
+
+```
+
+Given K-NN is a distance based algorithm it's important to note that the features are all on different scales, and this will negatively effect the performance of the model as larger features dominate the distance calculations. In order to keep data on a [0,1] scale, normalisation via the `preProcess()` min-max scaling method is performed [2]. Although this doesn't handle outliers as well as standardisation, normalisation is useful when you don't know the distribution of the data, or the model you're implementing does not use any underlying assumptions about distribution, like K-NN [1]. 
+
+## Methodology
+For determining which hyperparameter K is "better" for the K-NN classification model, 10-fold cross-validation is used on a downsample to find the test-errors for each K. The lower the error the assumed higher accuracy the K-NN will have on the full train-test dataset, although not 100% accurate, the K should provide us with a better tuned hyperparameter. Downsampling is used to reduce processing speed as K-NN is a computationally intense algorithm with long implementation time. 
+
+The 10-fold cross validation will be preformed over different Ks within the range (1, $\sqrt{n}$) to find a suitable size for K, with both the  normalised imbalanced and smote datasets. (1,$\sqrt{n}$) is a preliminary setsize (with breaks of 30) to observe an "elbow" in the error rate. The elbow observation shows the change in K: change in error ratio, in order to do a more accurate K-search over a smaller range (to save run-time). The K-values go up to $sqrt{n}$ as  "rule of thumb" [3], with K choices always being odd to avoid a tie in binary classification.
+
+## K evaluation on original dataset
+
+```{r}
+#combining X_train and y_train to trained dataset 
+set.seed(123)
+train_data <- cbind(y_normal_train, X_normal_train)
+#dim(train_data)
+
+sample_train = sample_n(train_data,40000)
+
+#using the min-max mehtod to normalise the data
+process <- preProcess(as.data.frame(sample_train), method=c("range"))
+norm_train_df <- predict(process, as.data.frame(sample_train))
+
+#checking dimensions
+#dim(norm_train_df)
+
+X_norm_sample = select(norm_train_df, -DEP_DEL15)
+y_norm_sample = norm_train_df$DEP_DEL15
+```
+
+
+```{r}
+set.seed(123) #setting seed for reproducible data
+
+
+#K-fold Cross-validation
+n = nrow(norm_train_df)
+k_values <- seq(1,sqrt(n),30)
+K <- 10
+sets <- sample( rep(1:K,n)[1:n], n)
+
+test_error_knn <- rep(0,length(k_values))
+for (k in 1:K)
+{
+test_set <- which(sets==k)
+train_set <- (1:n)[-test_set]
+X_train <- X_norm_sample[train_set,]
+X_test <- X_norm_sample[test_set,]
+y_train <- y_norm_sample[train_set]
+y_test <- y_norm_sample[test_set]
+
+# For each k.value fit knn classifier and find test error
+for (i in 1:length(k_values)) {
+y_test_pred <- knn(train=X_train,
+test=X_test,
+cl=y_train,
+k=k_values[i])
+test_error_knn[i] <- test_error_knn[i] + sum(y_test_pred!=y_test)
+}
+}
+test_error_knn <- test_error_knn/n
+
+
+plot(k_values,
+test_error_knn,
+type="b",
+col = "blue",
+xlab = "K-values",
+ylab = "Test error",
+xaxt = "n",
+main="Test errors for KNN")
+axis(1, at = c(1,31,61,91,121,151,181))
+```
+
+
+An obvious elbow is shown at K=31 with minor increase in accuracy/if any at points later. To refine K further we explore a smaller range of K's to get a better guage of at better K around 31.
+
+```{r}
+set.seed(123) #setting seed for reproducible data
+#K-fold Cross-validation
+n = nrow(norm_train_df)
+k_values <- seq(11,31,2)
+K <- 10
+sets <- sample( rep(1:K,n)[1:n], n)
+
+test_error_knn <- rep(0,length(k_values))
+for (k in 1:K)
+{
+test_set <- which(sets==k)
+train_set <- (1:n)[-test_set]
+X_train <- X_norm_sample[train_set,]
+X_test <- X_norm_sample[test_set,]
+y_train <- y_norm_sample[train_set]
+y_test <- y_norm_sample[test_set]
+
+# For each k.value fit knn classifier and find test error
+for (i in 1:length(k_values)) {
+y_test_pred <- knn(train=X_train,
+test=X_test,
+cl=y_train,
+k=k_values[i])
+test_error_knn[i] <- test_error_knn[i] + sum(y_test_pred!=y_test)
+}
+}
+test_error_knn <- test_error_knn/n
+
+
+library("data.table")
+#Make table of results 
+df = list( k_values = k_values,
+              error_normalised = test_error_knn )
+df = data.frame(unlist(k_values),unlist(test_error_knn))
+#to name the columns we use names() function
+names(df) = c("K-values","test-error")
+
+df %>%
+  kbl(caption = "K-search for imbalanced data") %>%
+  kable_styling()
+
+```
+From the table we can see that the K with the smallest error rate is at K=21. Although there are gaps within the Ks we could preform another K-search however due to run time, and the small difference in error for Ks around, we claim K=21 is good enough for our tuning of the hyperparameter K. This will be used to train and test the K-NN model for comparison on our original data. 
+
+
+## K evaluation on SMOTE data
+
+The same is done for the SMOTE dataframe...
+```{r}
+set.seed(123)
+#combining X_train and y_train to trained dataset 
+train_smote <- cbind(y_smote_train, X_smote_train)
+sample_smote = (sample_n(train_data, 40000))
+
+#Normalising using min-max 
+process <- preProcess(as.data.frame(sample_smote), method=c("range"))
+norm_smote <- predict(process, as.data.frame(sample_smote))
+
+#splitting into X and Y variables 
+X_smote_norm = select(norm_smote, -DEP_DEL15)
+y_smote_norm = norm_smote$DEP_DEL15
+```
+
+
+```{r}
+set.seed(123)
+k_values <- seq(1,sqrt(n),30)
+
+#K-fold Cross-validation
+n = nrow(sample_smote)
+K <- 10
+sets <- sample( rep(1:K,n)[1:n], n)
+
+test_error_knn_smote <- rep(0,length(k_values))
+for (k in 1:K)
+{
+test_set <- which(sets==k)
+train_set <- (1:n)[-test_set]
+X_trains <- X_smote_norm[train_set,]
+X_tests <- X_smote_norm[test_set,]
+y_trains <- y_smote_norm[train_set]
+y_tests <- y_smote_norm[test_set]
+
+# For each k.value fit knn classifier and find test error
+for (i in 1:length(k_values)) {
+y_test_preds <- knn(train=X_trains,
+test=X_tests,
+cl=y_trains,
+k=k_values[i])
+test_error_knn_smote[i] <- test_error_knn_smote[i] + sum(y_test_preds!=y_tests)
+}
+}
+test_error_knn_smote <- test_error_knn_smote/n
+
+plot(k_values,
+test_error_knn_smote,
+type="b",
+col = "blue",
+xlab = "K-values",
+ylab = "Test error",
+xaxt = "n",
+main="Test errors for KNN smote")
+axis(1, at = c(1,31,61,91,121,151,181))
+
+```
+
+Here it seems that the smote K-NN prefers a smaller K value, this is probably because the instnaces of each will be more regular. 
+
+```{r}
+set.seed(123)
+k_values <- seq(11,31,2)
+
+#K-fold Cross-validation
+n = nrow(sample_smote)
+K <- 10
+sets <- sample( rep(1:K,n)[1:n], n)
+
+test_error_knn_smote1 <- rep(0,length(k_values))
+for (k in 1:K)
+{
+test_set <- which(sets==k)
+train_set <- (1:n)[-test_set]
+X_train <- X_smote_norm[train_set,]
+X_test <- X_smote_norm[test_set,]
+y_train <- y_smote_norm[train_set]
+y_test <- y_smote_norm[test_set]
+
+# For each k.value fit knn classifier and find test error
+for (i in 1:length(k_values)) {
+y_test_pred <- knn(train=X_train,
+test=X_test,
+cl=y_train,
+k=k_values[i])
+test_error_knn_smote1[i] <- test_error_knn_smote1[i] + sum(y_test_pred!=y_test)
+}
+}
+test_error_knn_smote1 <- test_error_knn_smote1/n
+
+
+#Make table of results 
+df = data.frame(unlist(k_values),unlist(test_error_knn_smote1))
+#to name the columns we use names() function
+names(df) = c("K-values","test-error")
+df %>%
+  kbl(caption = "K-search for SMOTE data") %>%
+  kable_styling()
+
+```
+
+As you can see from both tables of a subset of K, the K with the smallest test error is K=21, for both datasets scaled. This is the K to be used when training the K-NN model to find accuracy and ROC curves within the main report. 
+
+## References 
+
+[1]  https://towardsai.net/p/data-science/how-when-and-why-should-you-normalize-standardize-rescale-your-data-3f083def38ff
+
+[2] (https://www.geeksforgeeks.org/how-to-normalize-and-standardize-data-in-r/)
+
+[3] https://learning-oreilly-com.bris.idm.oclc.org/library/view/machine-learning-with/9781788295864/ch03.html#ch03lvl1sec19
+
+
+
+
+
+
+
+
+
+
+
+
+
