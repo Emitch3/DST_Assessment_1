@@ -2,23 +2,80 @@
 title: "KNN training and testing"
 author: "Abbie Hayward"
 date: "2023-11-06"
-output: html_document
+output:
+  rmdformats::html_clean:
+    code_folding: hide
+    fig_width: 8
+    fig_height: 8
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 ```
 
-#Model development for KNN
+```{r}
+#packages required for report 
+install_packages = function(install = FALSE) {
+  if (install == TRUE) {
+    packages = c("knitr","tidyverse", "class", "readr", "pROC", "dplyr","fastDummies", "tidyr", "caret", "Metrics")
 
-From preliminary work for fine-tuning my model in the "finding K" rmd file, I found that for 10-fold cross validation an optimal K to look at would be K=21, on a standardised dataset.
+    
+    for (p in packages) { install.packages(p) }
+  }
+}
 
-
-# Code for ROC curve and training
-
+#To install packages required set (install = TRUE), you only need to do this once
+install_packages(install = FALSE)
+library("knitr") 
+library("class") # For knn
+library("pROC") # For ROCs
+library("readr")
+library("tidyr")
+library("dplyr")
+library("tidyverse")
+library("fastDummies")
+library("caret")
+library("kableExtra")
+library("Metrics")
+```
 
 ```{r}
-require("pROC")
+X_normal_train = read.csv("X_train.csv")
+y_normal_train = read.csv("y_train.csv")
+X_smote_train = read.csv("X_smote_train.csv")
+y_smote_train = read.csv("y_smote_train.csv")
+X_normal_test = read.csv("X_test.csv")
+y_normal_test = read.csv("y_test.csv")
+X_smote_test = read.csv("X_smote_test.csv")
+y_smote_test=read.csv("y_smote_test.csv")
+
+```
+
+```{r}
+#making full test and train dataset, scaled.
+train = cbind(y_normal_train, X_normal_train)
+test = cbind(y_normal_test, X_normal_test)
+train_smote = cbind(y_smote_train, X_smote_train)
+
+process <- preProcess(as.data.frame(train), method=c("range"))
+norm_train <- predict(process, as.data.frame(train))
+
+process <- preProcess(as.data.frame(test), method=c("range"))
+norm_test <- predict(process, as.data.frame(test))
+
+process <- preProcess(as.data.frame(train_smote), method=c("range"))
+norm_smote_train <- predict(process, as.data.frame(train_smote))
+ #note may need to run again to test on the original data due to synthetic dataframe
+```
+
+
+
+# Model development for KNN
+
+From preliminary work for fine-tuning my model in the "finding K" rmd file, I found that for 10-fold cross validation an optimal K to look at would be K=21, on both standardised datasets for my original and smote.This is the rmd file `finding_k`.
+
+The code implemented below is taken from DST block 05 workshop.
+```{r}
 learnmodel=function(modelclass,formula,train,test, 
                     predictfn=function(x,newdata)predict(x,newdata,type="response"),
                     ...){ 
@@ -77,91 +134,65 @@ predict.knnclass=function(x,newdata,...){
 ```
 
 
-```{r}
-X_normal_train = read.csv("X_train.csv")
-y_normal_train = read.csv("y_train.csv")
-X_smote_train = read.csv("X_smote_train.csv")
-y_smote_train = read.csv("y_smote_train.csv")
-X_normal_test = read.csv("X_test.csv")
-y_normal_test = read.csv("y_test.csv")
-X_smote_test = read.csv("X_smote_test.csv")
-y_smote_test=read.csv("y_smote_test.csv")
-
-```
-
-```{r}
-library(caret)
-#making full test and train dataset, scaled.
-train = cbind(y_normal_train, X_normal_train)
-test = cbind(y_normal_test, X_normal_test)
-train_smote = cbind(y_smote_train, X_smote_train)
-
-process <- preProcess(as.data.frame(train), method=c("range"))
-norm_train <- predict(process, as.data.frame(train))
-
-process <- preProcess(as.data.frame(test), method=c("range"))
-norm_test <- predict(process, as.data.frame(test))
-
-process <- preProcess(as.data.frame(train_smote), method=c("range"))
-norm_smote_train <- predict(process, as.data.frame(train_smote))
- #note may need to run again to test on the original data due to synthetic dataframe
-```
+Note that preliminary evaluation of my model, with hyperparameter tuning, and data transformation justification is performed in the `finding k` rmd file, and so this is mainly about storing a trained model to preform model evaluation and comparison in the results and comparison section of the report. There we explore the ROC curves more in depth, along with accuracy, precision, recall and area under the curve (AUC)  comparison. This section does not explore these at not-wanting to repeat information that would be better interpreted as a whole on a ipyn file. 
 
 
-#Normal model
+# Normal model
 ```{r}
 set.seed(123)
-knnmodel=learnmodel(knnclass,DEP_DEL15~.,norm_train,norm_test,k=21,predictfn=predict.knnclass)
-plot(knnmodel$roc)
+knnmodel1=learnmodel(knnclass,DEP_DEL15~.,norm_train,norm_test,k=21,predictfn=predict.knnclass)
+plot(knnmodel1$roc)
+
+
 ```
 
 ```{r}
-library(dplyr)
-#knnmodel[["roc"]]
-predicted_normal = as.data.frame(knnmodel[["testres"]][["pred"]])
-predicted_normal %>% 
-  rename(
-    prediction = knnmodel[["testres"]][["pred"]]
-    )
 
-#knnmodel[["roc"]]
+predicted_normal = as.data.frame(knnmodel1[["testres"]][["pred"]])
+
+AUC = as.numeric(knnmodel1[["roc"]][["auc"]])
+AUC
+```
+As we can see from the ROC curve it doens't deviate too far from the middle line which suggests model difficulty with classifying accurately. While the closeness of the curve to the line suggests weak predictive power, since ROC looks at threshold evaluation it could also suggest a lot of over-lapping of the classes within the data. The best way to evaluate the curve is to look at the area underneath (AUC), whist further analysis can still be made. 
+
+
+
+
+```{r}
 write.csv(predicted_normal,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/predicted_normal.csv")
-```
 
-
-```{r}
 # sensitivity and specificity to plot false positive rate and true positive rate
-sensitivity_normal = as.data.frame(knnmodel[["roc"]][["sensitivities"]])
-specificity_normal = as.data.frame(knnmodel[["roc"]][["specificities"]])
+sensitivity_normal = as.data.frame(knnmodel1[["roc"]][["sensitivities"]])
+specificity_normal = as.data.frame(knnmodel1[["roc"]][["specificities"]])
 sens_spec_norm = cbind(sensitivity_normal, specificity_normal)
 write.csv(sens_spec_norm,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/sens_spec_norm.csv")
 ```
+
+
 
 #Smote model
 ```{r}
 set.seed(123)
 knnmodel_smote=learnmodel(knnclass,DEP_DEL15~.,norm_smote_train,norm_test,k=21,predictfn=predict.knnclass)
 plot(knnmodel_smote$roc)
-knnmodel_smote[["roc"]]
+
 ```
-
-
 
 
 ```{r}
 
 predicted_smote = as.data.frame(knnmodel_smote[["testres"]][["pred"]])
-predicted_smote %>% 
-  rename(
-    prediction = knnmodel[["testres"]][["pred"]]
-    )
 
-write.csv(predicted_smote,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/predicted_smote.csv")
+AUC_smote = as.numeric(knnmodel_smote[["roc"]][["auc"]])
+AUC_smote
 
 ```
+**analyse curve and mention improved AUC**
+
 
 
 ```{r}
+write.csv(predicted_smote,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/predicted_smote.csv")
 #sensitivity and specificity to plot false positive rate and true positive rate
 sensitivity_smote = as.data.frame(knnmodel_smote[["roc"]][["sensitivities"]])
 specificity_smote = as.data.frame(knnmodel_smote[["roc"]][["specificities"]])
@@ -172,11 +203,13 @@ write.csv(sens_spec_smote,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbo
 ```{r}
 
 
-pred_probs_knn_original = as.data.frame(knnmodel[["testres"]][["pred0"]])
+pred_probs_knn_original = as.data.frame(knnmodel1[["testres"]][["pred0"]])
 pred_probs_knn_smote =  as.data.frame(knnmodel_smote[["testres"]][["pred0"]])
 write.csv(pred_probs_knn_original,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/pred_probs_knn_original.csv")
 write.csv(pred_probs_knn_smote,"C:/Users/abbie/OneDrive/Documents/Data Science Toolbox/pred_probs_knn_smote.csv")
 ```
+
+Overall you can see that the AUC curve improves for the smote dataset.
 
 
 
